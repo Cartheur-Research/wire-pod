@@ -66,7 +66,27 @@ func Remember(user, ai openai.ChatCompletionMessage, esn string) {
 }
 
 func isMn(r rune) bool {
-	return unicode.Is(unicode.Mn, r) // Mn: nonspacing marks
+	// Remove the characters that are not related to Vietnamese.
+	// Retain the tonal marks and diacritics such as the circumflex, ơ, and ư in Vietnamese.
+	keepMarks := []rune{
+		'\u0300', // Dấu huyền
+		'\u0301', // Dấu sắc
+		'\u0303', // Dấu ngã
+		'\u0309', // Dấu hỏi
+		'\u0323', // Dấu nặng
+		'\u0302', // Dấu mũ (â, ê, ô)
+		'\u031B', // Dấu ơ và ư
+		'\u0306', // Dấu trầm
+	}
+	if unicode.Is(unicode.Mn, r) {
+		for _, mark := range keepMarks {
+			if r == mark {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func removeSpecialCharacters(str string) string {
@@ -241,6 +261,7 @@ func StreamingKGSim(req interface{}, esn string, transcribedText string, isKG bo
 
 	stream, err := c.CreateChatCompletionStream(ctx, aireq)
 	if err != nil {
+        	log.Printf("Error creating chat completion stream: %v", err)
 		if strings.Contains(err.Error(), "does not exist") && vars.APIConfig.Knowledge.Provider == "openai" {
 			logger.Println("GPT-4 model cannot be accessed with this API key. You likely need to add more than $5 dollars of funds to your OpenAI account.")
 			logger.LogUI("GPT-4 model cannot be accessed with this API key. You likely need to add more than $5 dollars of funds to your OpenAI account.")
@@ -323,6 +344,11 @@ func StreamingKGSim(req interface{}, esn string, transcribedText string, isKG bo
 				logger.Println("Stream error: " + err.Error())
 				return
 			}
+
+            		if (len(response.Choices) == 0) {
+                		logger.Println("Empty response")
+                		return
+            		}
 
 			fullfullRespText = fullfullRespText + removeSpecialCharacters(response.Choices[0].Delta.Content)
 			fullRespText = fullRespText + removeSpecialCharacters(response.Choices[0].Delta.Content)
